@@ -1,32 +1,52 @@
 import os
-from flask import Flask
-import threading
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import telebot
+from telebot import types
+import sqlite3
+from datetime import datetime
 
 TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = 8696556885
 
-app = Flask(__name__)
-@app.route('/')
-def home():
-    return "Bot is running!"
+bot = telebot.TeleBot(TOKEN)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привет! Бот работает!")
+conn = sqlite3.connect('leads.db', check_same_thread=False)
+cursor = conn.cursor()
+cursor.execute('''CREATE TABLE IF NOT EXISTS leads
+                  (user_id INTEGER, shop TEXT, month TEXT,
+                  UNIQUE(user_id, shop, month))''')
+conn.commit()
 
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"Ты написал: {update.message.text}")
+COUPONS = {
+    "БАРБЕРШОП": "BARBER10 - 10% на стрижку",
+    "АВТОМОЙКА": "WASH20 - 5 моек = 1 бесплатно",
+    "КОФЕЙНЯ": "COFFEE500 - Кофе + десерт за 1500тг"
+}
 
-def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+def get_menu():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("БАРБЕРШОП", "АВТОМОЙКА")
+    markup.add("КОФЕЙНЯ")
+    return markup
 
-def main():
-    threading.Thread(target=run_flask, daemon=True).start()
-    application = Application.builder().token(TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
-    application.run_polling()
+@bot.message_handler(commands=['start'])
+def start(message):
+    bot.send_message(message.chat.id, "Забирай купон 1 раз в месяц 👇", reply_markup=get_menu())
 
-if __name__ == '__main__':
-    main()
+@bot.message_handler(func=lambda m: m.text in COUPONS)
+def give_coupon(message):
+    shop = message.text
+    month = datetime.now().strftime("%Y-%m")
+    user_id = message.from_user.id
+    cursor.execute("SELECT 1 FROM leads WHERE user_id=? AND shop=? AND month=?", (user_id, shop, month))
+    if cursor.fetchone():
+        bot.send_message(message.chat.id, f"Брат, купон на {shop} ты уже брал в этом месяце 😅")
+        return
+    try:
+        cursor.execute("INSERT INTO leads (user_id, shop, month) VALUES (?,?,?)", (user_id, shop, month))
+        conn.commit()
+        bot.send_message(message.chat.id, f"Держи купон на {shop}! 🔥\n\n{ COUPONS[shop] }")
+    except:
+        bot.send_message(message.chat.id, f"Брат, купон на {shop} ты уже брал в этом месяце 😅")
+
+print("Скидки KZ Агент запущен!")
+bot.polling(none_stop=True)
