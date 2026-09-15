@@ -1,52 +1,47 @@
-import os
 import telebot
 from telebot import types
-import sqlite3
-from datetime import datetime
+import os
+import threading
+from flask import Flask
 
-TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 8696556885
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    print("ОШИБКА: BOT_TOKEN не задан!")
+    exit(1)
 
-bot = telebot.TeleBot(TOKEN)
+bot = telebot.TeleBot(BOT_TOKEN)
 
-conn = sqlite3.connect('leads.db', check_same_thread=False)
-cursor = conn.cursor()
-cursor.execute('''CREATE TABLE IF NOT EXISTS leads
-                  (user_id INTEGER, shop TEXT, month TEXT,
-                  UNIQUE(user_id, shop, month))''')
-conn.commit()
+app = Flask(__name__)
+@app.route('/')
+def home():
+    return "Бот Скидки KZ работает!"
 
-COUPONS = {
-    "БАРБЕРШОП": "BARBER10 - 10% на стрижку",
-    "АВТОМОЙКА": "WASH20 - 5 моек = 1 бесплатно",
-    "КОФЕЙНЯ": "COFFEE500 - Кофе + десерт за 1500тг"
-}
+def run_flask():
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
 
-def get_menu():
+def main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("БАРБЕРШОП", "АВТОМОЙКА")
-    markup.add("КОФЕЙНЯ")
+    markup.add(types.KeyboardButton("💈 БАРБЕРШОП"), types.KeyboardButton("🚗 АВТОМОЙКА"))
+    markup.add(types.KeyboardButton("☕ КОФЕЙНЯ"), types.KeyboardButton("📱 СВЯЗЬ"))
     return markup
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(message.chat.id, "Забирай купон 1 раз в месяц 👇", reply_markup=get_menu())
+    bot.send_message(message.chat.id, "Привет! Я агент Скидки KZ 👋\nВыбери бизнес, сделаю пост за 30 сек:", reply_markup=main_menu())
 
-@bot.message_handler(func=lambda m: m.text in COUPONS)
-def give_coupon(message):
-    shop = message.text
-    month = datetime.now().strftime("%Y-%m")
-    user_id = message.from_user.id
-    cursor.execute("SELECT 1 FROM leads WHERE user_id=? AND shop=? AND month=?", (user_id, shop, month))
-    if cursor.fetchone():
-        bot.send_message(message.chat.id, f"Брат, купон на {shop} ты уже брал в этом месяце 😅")
-        return
-    try:
-        cursor.execute("INSERT INTO leads (user_id, shop, month) VALUES (?,?,?)", (user_id, shop, month))
-        conn.commit()
-        bot.send_message(message.chat.id, f"Держи купон на {shop}! 🔥\n\n{ COUPONS[shop] }")
-    except:
-        bot.send_message(message.chat.id, f"Брат, купон на {shop} ты уже брал в этом месяце 😅")
+@bot.message_handler(func=lambda m: True)
+def handle_all(message):
+    text = message.text
+    if "БАРБЕРШОП" in text:
+        bot.send_message(message.chat.id, "💈 Для барбершопа:\n\n'Стрижка + борода всего 4000тг! Запишись сегодня - осталось 3 места. Пиши в личку!' \n\nХочешь такой пост с твоим адресом?")
+    elif "АВТОМОЙКА" in text:
+        bot.send_message(message.chat.id, "🚗 Для автомойки:\n\n'Комплекс всего за 2500тг! До конца недели. Блеск как с салона ✨'")
+    elif "КОФЕЙНЯ" in text:
+        bot.send_message(message.chat.id, "☕ Для кофейни:\n\n'2 капучино по цене 1 до 12:00! Успей на завтрак ☕️'")
+    else:
+        bot.send_message(message.chat.id, "Напиши что за бизнес у тебя, я сделаю продающий пост!", reply_markup=main_menu())
 
-print("Скидки KZ Агент запущен!")
-bot.polling(none_stop=True)
+if __name__ == "__main__":
+    threading.Thread(target=run_flask, daemon=True).start()
+    print("Скидки KZ Агент запущен!")
+    bot.infinity_polling()
