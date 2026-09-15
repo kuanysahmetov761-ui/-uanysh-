@@ -2,7 +2,7 @@ import telebot, json, os, threading
 from datetime import datetime
 from flask import Flask
 
-TOKEN = '8823404473:AAGhcEuCYotTtpNTsaMUs8wFOVfYNdcLrGg'
+TOKEN = os.getenv("BOT_TOKEN"
 bot = telebot.TeleBot(TOKEN)
 FILE = 'users_data.json'
 
