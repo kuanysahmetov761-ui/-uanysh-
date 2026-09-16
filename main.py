@@ -31,8 +31,8 @@ def main_menu():
     return kb
 
 @app.route('/')
-def home(): return "Скидки KZ Агент - LIVE"
-
+def home(): 
+    return "OK", 200
 @bot.message_handler(commands=['start'])
 def start(m):
     bot.send_message(m.chat.id, f"Салам! Выбери купон 👇\n1 чел = 1 купон в месяц\n\nАдмин: {ADMIN_NAME}", reply_markup=main_menu())
