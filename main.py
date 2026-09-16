@@ -1,14 +1,14 @@
-
 import os, sqlite3, threading, time
 from datetime import datetime
 import telebot
 from telebot import types
 from flask import Flask
 
-TOKEN = os.getenv("BOT_TOKEN")  or "8823404473:AAHtycrXUO7kVtSmnSgbt7RYizAAwh5lrO8"
+TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN, threaded=False)
 app = Flask(__name__)
 
+ADMIN_ID = 8696556885
 ADMIN_NAME = "Ахметов Куаныш Нурланович"
 ADMIN_PHONE = "87778937645"
 ADMIN_WA = "https://wa.me/7778937645"
@@ -31,11 +31,26 @@ def main_menu():
     return kb
 
 @app.route('/')
-def home(): 
+def home():
     return "OK", 200
+
 @bot.message_handler(commands=['start'])
 def start(m):
     bot.send_message(m.chat.id, f"Салам! Выбери купон 👇\n1 чел = 1 купон в месяц\n\nАдмин: {ADMIN_NAME}", reply_markup=main_menu())
+
+@bot.message_handler(commands=['leads'])
+def leads_check(m):
+    if m.from_user.id!= ADMIN_ID:
+        return
+    cur.execute("SELECT shop, month, COUNT(*) FROM leads GROUP BY shop, month ORDER BY month DESC")
+    rows = cur.fetchall()
+    if not rows:
+        bot.send_message(m.chat.id, "Пока лидов 0")
+        return
+    text = "📊 Твоя база лидов:\n\n"
+    for shop, month, cnt in rows:
+        text += f"{shop} | {month}: {cnt} чел\n"
+    bot.send_message(m.chat.id, text)
 
 @bot.message_handler(func=lambda m: m.text in COUPONS)
 def give(m):
@@ -43,17 +58,14 @@ def give(m):
     code, desc = COUPONS[shop]
     month = datetime.now().strftime("%Y-%m")
     uid = m.from_user.id
-
     cur.execute("SELECT 1 FROM leads WHERE user_id=? AND shop=? AND month=?", (uid, shop, month))
     if cur.fetchone():
         kb = types.InlineKeyboardMarkup()
         kb.add(types.InlineKeyboardButton(f"📞 {ADMIN_NAME} {ADMIN_PHONE}", url=ADMIN_WA))
         bot.send_message(m.chat.id, f"⛔ Ты уже брал {shop} в этом месяце!\n1 чел = 1 купон.", reply_markup=kb)
         return
-
     cur.execute("INSERT INTO leads VALUES (?,?,?)", (uid, shop, month))
     conn.commit()
-
     kb = types.InlineKeyboardMarkup(row_width=1)
     kb.add(
         types.InlineKeyboardButton(f"🎟️ Код: {code}", callback_data="ok"),
