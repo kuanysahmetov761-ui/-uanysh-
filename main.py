@@ -5,7 +5,7 @@ import telebot
 from telebot import types
 from flask import Flask
 
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN")  or "8823404473:AAHtycrXUO7kVtSmnSgbt7RYizAAwh5lrO8"
 bot = telebot.TeleBot(TOKEN, threaded=False)
 app = Flask(__name__)
 
